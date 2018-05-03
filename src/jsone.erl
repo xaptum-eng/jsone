@@ -288,6 +288,7 @@ decode(Json) ->
 %%     in call from jsone:decode/1 (src/jsone.erl, line 71)
 %% '''
 -spec decode(binary(), [decode_option()]) -> json_value().
+-ifdef('OLD_TRY_CATCH').
 decode(Json, Options) ->
     try
         {ok, Value, _} = try_decode(Json, Options),
@@ -296,6 +297,16 @@ decode(Json, Options) ->
         error:{badmatch, {error, {Reason, [StackItem]}}} ->
             erlang:raise(error, Reason, [StackItem | erlang:get_stacktrace()])
     end.
+-else.
+decode(Json, Options) ->
+    try
+        {ok, Value, _} = try_decode(Json, Options),
+        Value
+    catch
+        error:{badmatch, {error, {Reason, [StackItem]}}}:StackTrace ->
+            erlang:raise(error, Reason, [StackItem | StackTrace])
+    end.
+-endif.
 
 %% @equiv try_decode(Json, [])
 -spec try_decode(binary()) -> {ok, json_value(), Remainings::binary()} | {error, {Reason::term(), [stack_item()]}}.
@@ -337,6 +348,7 @@ encode(JsonValue) ->
 %%      in call from jsone:encode/1 (src/jsone.erl, line 97)
 %% '''
 -spec encode(json_value(), [encode_option()]) -> binary().
+-ifdef('OLD_TRY_CATCH').
 encode(JsonValue, Options) ->
     try
         {ok, Binary} = try_encode(JsonValue, Options),
@@ -345,6 +357,16 @@ encode(JsonValue, Options) ->
         error:{badmatch, {error, {Reason, [StackItem]}}} ->
             erlang:raise(error, Reason, [StackItem | erlang:get_stacktrace()])
     end.
+-else.
+encode(JsonValue, Options) ->
+    try
+        {ok, Binary} = try_encode(JsonValue, Options),
+        Binary
+    catch
+        error:{badmatch, {error, {Reason, [StackItem]}}}:StackTrace ->
+            erlang:raise(error, Reason, [StackItem | StackTrace])
+    end.
+-endif.
 
 %% @equiv try_encode(JsonValue, [])
 -spec try_encode(json_value()) -> {ok, binary()} | {error, {Reason::term(), [stack_item()]}}.
