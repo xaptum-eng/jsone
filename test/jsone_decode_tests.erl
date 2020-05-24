@@ -306,5 +306,29 @@ decode_test_() ->
               Input = <<123,34,105,100,34,58,34,190,72,94,90,253,121,94,71,73,68,91,122,211,253,32,94,86,67,163,253,230,34,125>>,
               ?assertMatch({ok, _, _}, jsone:try_decode(Input)),
               ?assertMatch({error, {badarg, _}}, jsone:try_decode(Input, [reject_invalid_utf8]))
-      end}
+      end},
+      {"Inet format tests",
+       fun() ->
+              Str = <<"\"a string\"">>, Ip4 = <<"\"127.0.0.1\"">>, Ip6 = <<"\"fd0c:8f80:8000::\"">>,
+              Ip4Cidr = <<"\"192.168.3.0/8\"">>, Ip6Cidr = <<"\"fd0c:8f80:8000::/48\"">>,
+              ?assertEqual(<<"a string">>, jsone:decode(Str, [try_parse_inet])),
+              ?assertEqual({127,0,0,1}, jsone:decode(Ip4, [try_parse_inet])),
+              ?assertEqual({64780,36736,32768,0,0,0,0,0}, jsone:decode(Ip6, [try_parse_inet])),
+              ?assertEqual({{192,168,3,0},8}, jsone:decode(Ip4Cidr, [try_parse_inet])),
+              ?assertEqual({{64780,36736,32768,0,0,0,0,0},48}, jsone:decode(Ip6Cidr, [try_parse_inet])),
+
+              ?assertEqual([<<"a string">>], jsone:decode(<<"[\"a string\"]">>, [try_parse_inet])),
+              ?assertEqual([{127,0,0,1}], jsone:decode(<<"[\"127.0.0.1\"]">>, [try_parse_inet])),
+              ?assertEqual([{64780,36736,32768,0,0,0,0,0}], jsone:decode(<<"[\"fd0c:8f80:8000::\"]">>, [try_parse_inet])),
+              ?assertEqual([{{192,168,3,0},8}], jsone:decode(<<"[\"192.168.3.0/8\"]">>, [try_parse_inet])),
+              ?assertEqual([{{64780,36736,32768,0,0,0,0,0},48}], jsone:decode(<<"[\"fd0c:8f80:8000::/48\"]">>, [try_parse_inet])),
+
+              InputList = <<"[\"a string\", \"127.0.0.1\", \"fd0c:8f80:8000::\",\"192.168.3.0/8\",\"fd0c:8f80:8000::/48\"]">>,
+              ?assertEqual([<<"a string">>, {127,0,0,1}, {64780,36736,32768,0,0,0,0,0},
+                            {{192,168,3,0},8},{{64780,36736,32768,0,0,0,0,0},48}], jsone:decode(InputList, [try_parse_inet])),
+
+              ?assertEqual(#{<<"data">> => {127,0,0,1}}, jsone:decode(<<"{\"data\": \"127.0.0.1\"}">>, [try_parse_inet])),
+              ?assertEqual(#{<<"data">> => [{127,0,0,1}]}, jsone:decode(<<"{\"data\": [\"127.0.0.1\"]}">>, [try_parse_inet]))
+       end
+      }
     ].
