@@ -306,5 +306,17 @@ decode_test_() ->
               Input = <<123,34,105,100,34,58,34,190,72,94,90,253,121,94,71,73,68,91,122,211,253,32,94,86,67,163,253,230,34,125>>,
               ?assertMatch({ok, _, _}, jsone:try_decode(Input)),
               ?assertMatch({error, {badarg, _}}, jsone:try_decode(Input, [reject_invalid_utf8]))
+      end},
+     {"Ip Address and Cidr",
+      fun () ->
+          ?assertEqual({127,0,0,1}, jsone:decode(<<"\"127.0.0.1\"">>, [{inet, ip}])),
+          ?assertEqual({64560, 0, 0, 128, 0, 0, 0, 16}, jsone:decode(<<"\"fc30:0:0:80::10\"">>, [{inet, ip}])),
+          ?assertEqual(<<"127.0.0.1">>, jsone:decode(<<"\"127.0.0.1\"">>)),
+          ?assertEqual(<<"fc30:0:0:80::10">>, jsone:decode(<<"\"fc30:0:0:80::10\"">>)),
+          ?assertEqual({{192,168,0,0},16}, jsone:decode(<<"\"192.168.0.0/16\"">>, [{inet, cidr}])),
+          ?assertEqual({{64560, 0, 0, 128, 0, 0, 0, 0},48}, jsone:decode(<<"\"fc30:0:0:80::/48\"">>, [{inet, cidr}])),
+          ?assertEqual([#{error => #{ip => {{127,0,0,1},12},val => <<"NETWORK">>}}],
+                       jsone:decode(<<"[{\"error\": {\"ip\":\"127.0.0.1/12\", \"val\": \"NETWORK\"}}]">>,
+                                    [{keys, atom},{inet_keys, [{ip, cidr}]}]))
       end}
     ].

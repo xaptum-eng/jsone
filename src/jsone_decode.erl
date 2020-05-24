@@ -70,7 +70,9 @@
           reject_invalid_utf8=false :: boolean(),
           keys=binary :: 'binary' | 'atom' | 'existing_atom' | 'attempt_atom',
           undefined_as_null=false :: boolean(),
-          duplicate_map_keys=first :: first | last
+          duplicate_map_keys=first :: first | last,
+          inet=undefined :: 'ip' | 'cidr',
+          inet_keys=[] :: [{term(), 'ip'|'cidr'}]
         }).
 -define(OPT, #decode_opt_v2).
 -type opt() :: #decode_opt_v2{}.
@@ -90,14 +92,41 @@ decode(<<Json/binary>>, Options) ->
 %%--------------------------------------------------------------------------------
 %% Internal Functions
 %%--------------------------------------------------------------------------------
+convert_to_ip_address(Value) ->
+  case catch inet:parse_ipv6strict_address(Value) of
+    {error, einval} -> {ok, Ip4} = inet:parse_ipv4strict_address(Value), Ip4;
+    {ok, Ip6} -> Ip6
+  end.
+
+convert_to_cidr(Value) ->
+  [Pfx,Len] = string:split(Value, "/"),
+  Ip = convert_to_ip_address(Pfx),
+  {Ip, list_to_integer(Len)}.
+
+convert_value(Value, #decode_opt_v2{inet = ip}) when is_binary(Value) ->
+  convert_to_ip_address(binary_to_list(Value));
+convert_value(Value, #decode_opt_v2{inet = cidr}) when is_binary(Value) ->
+  convert_to_cidr(binary_to_list(Value));
+convert_value(Value, _Opt) ->
+  Value.
+
+convert_value(Key, Value, #decode_opt_v2{inet_keys = IK}) when is_binary(Value) ->
+  case proplists:get_value(Key, IK) of
+    ip -> convert_to_ip_address(binary_to_list(Value));
+    cidr -> convert_to_cidr(binary_to_list(Value));
+    _ -> Value
+  end;
+convert_value(_Key, Value, _Opt) ->
+  Value.
+
 -spec next(binary(), jsone:json_value(), [next()], binary(), opt()) -> decode_result().
-next(<<Bin/binary>>, Value, [], _Buf, _Opt) ->
-    {ok, Value, Bin};
+next(<<Bin/binary>>, Value, [], _Buf, Opt) ->
+    {ok, convert_value(Value, Opt), Bin};
 next(<<Bin/binary>>, Value, [Next | Nexts], Buf, Opt) ->
     case Next of
         {array_next, Values}        -> whitespace(Bin, {array_next, [Value | Values]}, Nexts, Buf, Opt);
         {object_value, Members}     -> whitespace(Bin, {object_value, Value, Members}, Nexts, Buf, Opt);
-        {object_next, Key, Members} -> whitespace(Bin, {object_next, [{Key, Value} | Members]}, Nexts, Buf, Opt)
+        {object_next, Key, Members} -> whitespace(Bin, {object_next, [{Key, convert_value(Key, Value, Opt)} | Members]}, Nexts, Buf, Opt)
     end.
 
 -spec whitespace(binary(), whitespace_next(), [next()], binary(), opt()) -> decode_result().
@@ -319,5 +348,11 @@ parse_option([undefined_as_null|T], Opt) ->
 parse_option([{duplicate_map_keys, V} | T], Opt)
   when V =:= first; V =:= last ->
     parse_option(T, Opt?OPT{duplicate_map_keys=V});
+parse_option([{inet, I} | T], Opt)
+  when I =:= ip; I =:= cidr ->
+    parse_option(T, Opt?OPT{inet=I});
+parse_option([{inet_keys, IK} | T], Opt)
+  when is_list(IK) ->
+  parse_option(T, Opt?OPT{inet_keys=IK});
 parse_option(List, Opt) ->
     error(badarg, [List, Opt]).

@@ -235,6 +235,8 @@
                        | reject_invalid_utf8
                        | {'keys', 'binary' | 'atom' | 'existing_atom' | 'attempt_atom'}
                        | {duplicate_map_keys, first | last}
+                       | {inet, 'ip' | 'cidr'}
+                       | {inet_keys, [{term(), 'ip'|'cidr'}]}
                        | common_option().
 %% `object_format': <br />
 %% - Decoded JSON object format <br />
